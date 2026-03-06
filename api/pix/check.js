@@ -37,6 +37,11 @@ function pickFirst(...values) {
   return null;
 }
 
+function isLikelyBase64(str) {
+  if (typeof str !== 'string') return false;
+  return /^[A-Za-z0-9+/=]+$/.test(str.trim());
+}
+
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -308,7 +313,7 @@ module.exports = async function handler(req, res) {
     );
 
     const qrCodeImageRaw = pickFirst(
-      data.pix && (data.pix.qrImage || data.pix.image || data.pix.base64 || data.pix.qrcode),
+      data.pix && (data.pix.qrImage || data.pix.image || data.pix.base64),
       data.qrCodeBase64,
       data.qr_code_base64,
       data.qrImage,
@@ -317,14 +322,18 @@ module.exports = async function handler(req, res) {
       data.pix_qr_code_base64
     );
 
-    const qrCodeImage =
-      typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
-        ? qrCodeImageRaw
-        : typeof qrCodeImageRaw === 'string' && (qrCodeImageRaw.startsWith('http://') || qrCodeImageRaw.startsWith('https://'))
-          ? qrCodeImageRaw
-          : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
-            ? `data:image/png;base64,${qrCodeImageRaw}`
-            : null;
+    let qrCodeImage = null;
+    if (typeof qrCodeImageRaw === 'string') {
+      if (qrCodeImageRaw.startsWith('data:image')) {
+        qrCodeImage = qrCodeImageRaw;
+      } else if (qrCodeImageRaw.startsWith('http://') || qrCodeImageRaw.startsWith('https://')) {
+        qrCodeImage = qrCodeImageRaw;
+      } else if (isLikelyBase64(qrCodeImageRaw)) {
+        qrCodeImage = `data:image/png;base64,${qrCodeImageRaw}`;
+      } else {
+        qrCodeImage = null;
+      }
+    }
 
     // fallback: if we only have the EMV/copy-paste code (qrCodeText), generate QR image URL
     if (!qrCodeImage && qrCodeText && typeof qrCodeText === 'string') {
