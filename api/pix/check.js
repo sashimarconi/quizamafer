@@ -1,4 +1,4 @@
-const BLACKCAT_BASE_URL = 'https://api.blackcatpay.com.br/api';
+const PARADISE_CHECK_BASE_URL = 'https://multi.paradisepags.com/api/v1/check_status.php';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -19,12 +19,22 @@ function normalizeBody(req) {
 }
 
 function mapStatus(status) {
-  const normalized = String(status || '').toUpperCase();
-  if (normalized === 'PAID') return 'paid';
-  if (normalized === 'PENDING') return 'pending';
-  if (normalized === 'CANCELLED') return 'cancelled';
-  if (normalized === 'REFUNDED') return 'refunded';
-  return normalized.toLowerCase() || 'unknown';
+  const normalized = String(status || '').toLowerCase();
+  if (['paid', 'approved', 'completed', 'success', 'succeeded'].includes(normalized)) return 'paid';
+  if (['pending', 'waiting', 'processing', 'created'].includes(normalized)) return 'pending';
+  if (['cancelled', 'canceled', 'voided', 'rejected'].includes(normalized)) return 'cancelled';
+  if (['expired', 'expire', 'timeout'].includes(normalized)) return 'expired';
+  if (['refunded', 'refund'].includes(normalized)) return 'refunded';
+  return 'pending';
+}
+
+function pickFirst(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return value;
+    }
+  }
+  return null;
 }
 
 module.exports = async function handler(req, res) {
@@ -39,10 +49,19 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.BLACKCATPAY_SECRET_KEY || process.env.BLACKCATPAY_API_KEY;
+  const apiKey = process.env.PARADISE_API_KEY;
+  const upsellUrl = process.env.PARADISE_UPSELL_URL;
+
   if (!apiKey) {
     sendJson(res, 500, {
-      error: 'BLACKCATPAY_SECRET_KEY não configurada no ambiente.'
+      error: 'PARADISE_API_KEY não configurada no ambiente.'
+    });
+    return;
+  }
+
+  if (!upsellUrl) {
+    sendJson(res, 500, {
+      error: 'PARADISE_UPSELL_URL não configurada no ambiente.'
     });
     return;
   }
@@ -56,49 +75,58 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(
-      `${BLACKCAT_BASE_URL}/sales/${encodeURIComponent(String(transactionId))}/status`,
-      {
-        method: 'GET',
-        headers: {
-          'X-API-Key': apiKey
-        }
+    const queryHash = encodeURIComponent(String(transactionId));
+    const response = await fetch(`${PARADISE_CHECK_BASE_URL}?hash=${queryHash}`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': apiKey
       }
-    );
+    });
 
     const result = await response.json().catch(() => ({}));
 
-    if (!response.ok || !result.success || !result.data) {
+    if (!response.ok) {
       sendJson(res, 502, {
         status: 'error',
-        source: 'blackcatpay',
+        source: 'paradisepags',
         checkerVersion: 'vercel-proxy-v1',
         checkedIds: [transactionId],
-        error: result.message || result.error || 'Falha ao consultar status no BlackCatPay.',
+        error: result.message || result.error || 'Falha ao consultar status no Paradise.',
         details: result
       });
       return;
     }
 
-    const data = result.data;
+    const data = result.data || result.transaction || result;
+    const rawStatus = pickFirst(data.status, data.payment_status, data.paymentStatus, data.transaction_status);
+    const mappedStatus = mapStatus(rawStatus);
+
+    if (mappedStatus === 'paid') {
+      sendJson(res, 200, {
+        status: 'paid',
+        redirect_url: upsellUrl,
+        source: 'paradisepags',
+        checkerVersion: 'vercel-proxy-v1',
+        checkedIds: [transactionId],
+        rawStatus: rawStatus || 'paid'
+      });
+      return;
+    }
 
     sendJson(res, 200, {
-      status: mapStatus(data.status),
-      source: 'blackcatpay',
+      status: 'pending',
+      source: 'paradisepags',
       checkerVersion: 'vercel-proxy-v1',
       checkedIds: [transactionId],
-      transactionId: data.transactionId,
-      rawStatus: data.status,
-      paidAt: data.paidAt || null,
-      endToEndId: data.endToEndId || null
+      rawStatus: rawStatus || 'pending'
     });
   } catch (error) {
     sendJson(res, 500, {
       status: 'error',
-      source: 'blackcatpay',
+      source: 'paradisepags',
       checkerVersion: 'vercel-proxy-v1',
       checkedIds: [transactionId],
-      error: 'Erro interno ao consultar status no BlackCatPay.',
+      error: 'Erro interno ao consultar status no Paradise.',
       details: error instanceof Error ? error.message : String(error)
     });
   }

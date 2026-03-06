@@ -3,10 +3,12 @@
 ## 1) Configurar variáveis na Vercel
 No projeto da Vercel, adicione em **Settings > Environment Variables**:
 
-- `BLACKCATPAY_SECRET_KEY`
-- `BLACKCATPAY_API_KEY` (opcional, fallback)
+- `PARADISE_API_KEY`
+- `PARADISE_PRODUCT_HASH`
+- `PARADISE_AMOUNT_CENTS`
+- `PARADISE_UPSELL_URL`
 
-Use a sua chave privada da BlackCatPay.
+Use os dados privados da Paradise no backend (não exponha no frontend).
 
 ## 2) Publicar no GitHub
 No terminal, dentro da pasta do projeto:
@@ -26,9 +28,10 @@ git push -u origin main
 - Deploy
 
 ## 4) Teste do fluxo PIX
-- Abrir checkout
-- Gerar PIX de kit e frete
-- Confirmar polling de status de pagamento
+- Abrir checkout e gerar PIX
+- Confirmar retorno de QR Code / copia e cola
+- Confirmar polling de status a cada 3s
+- Após pagamento, confirmar retorno de `redirect_url` no backend
 
 ## Observação
 Este workspace é um mirror estático sem código-fonte original (apenas bundle minificado). A migração foi feita com:
