@@ -2,6 +2,7 @@ const PARADISE_CREATE_URLS = [
   'https://multi.paradisepags.com/api/v1/transaction',
   'https://multi.paradisepags.com/api/v1/transaction.php'
 ];
+const DEFAULT_PARADISE_PRODUCT_HASH = 'prod_bc6860b7c055edfe';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -332,7 +333,9 @@ module.exports = async function handler(req, res) {
   const productHash =
     explicitProductHash ||
     matchedProduct?.config.productHash ||
-    (envSingleProductHash ? String(envSingleProductHash).trim() : null);
+    (envSingleProductHash
+      ? String(envSingleProductHash).trim()
+      : DEFAULT_PARADISE_PRODUCT_HASH);
 
   if (!amountInCents || amountInCents <= 0) {
     sendJson(res, 500, {
