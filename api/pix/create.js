@@ -582,7 +582,8 @@ module.exports = async function handler(req, res) {
       try {
         const emv = qrCodeText.trim();
         if (emv.length > 0) {
-          qrCodeImage = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(emv)}`;
+          // use internal proxy to avoid hotlink/CORS issues
+          qrCodeImage = `/api/pix/qr-proxy?emv=${encodeURIComponent(emv)}`;
         }
       } catch (e) {
         // ignore
@@ -670,7 +671,7 @@ module.exports = async function handler(req, res) {
               try {
                 const emv = qrCodeText.trim();
                 if (emv.length > 0) {
-                  qrCodeImage = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(emv)}`;
+                  qrCodeImage = `/api/pix/qr-proxy?emv=${encodeURIComponent(emv)}`;
                 }
               } catch (e) {}
             }
