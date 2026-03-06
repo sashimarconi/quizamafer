@@ -22,6 +22,10 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
 function generateValidCpf() {
   const digits = [];
 
@@ -52,6 +56,23 @@ function generateRandomCustomer() {
     email: `cliente_${now}_${customerNumber}@email.com`,
     document: generateValidCpf(),
     phone
+  };
+}
+
+function resolveCustomer(inputCustomer) {
+  const fallback = generateRandomCustomer();
+  const customer = inputCustomer && typeof inputCustomer === 'object' ? inputCustomer : {};
+
+  const name = String(customer.name || '').trim();
+  const email = String(customer.email || '').trim();
+  const document = onlyDigits(customer.document);
+  const phone = onlyDigits(customer.phone);
+
+  return {
+    name: name || fallback.name,
+    email: email || fallback.email,
+    document: document.length === 11 ? document : fallback.document,
+    phone: phone.length >= 10 ? phone : fallback.phone
   };
 }
 
@@ -323,15 +344,15 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const randomCustomer = generateRandomCustomer();
+  const resolvedCustomer = resolveCustomer(body.customer);
 
   const payload = {
     amount: amountInCents,
     customer: {
-      name: randomCustomer.name,
-      email: randomCustomer.email,
-      document: randomCustomer.document,
-      phone: randomCustomer.phone
+      name: resolvedCustomer.name,
+      email: resolvedCustomer.email,
+      document: resolvedCustomer.document,
+      phone: resolvedCustomer.phone
     }
   };
 
@@ -349,12 +370,21 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify(payload)
     });
 
-    const result = await response.json().catch(() => ({}));
+    const rawText = await response.text();
+    let result = {};
+
+    try {
+      result = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      result = {};
+    }
 
     if (!response.ok) {
       sendJson(res, 502, {
         error: result.message || result.error || 'Falha ao criar transação no Paradise.',
-        details: result
+        providerStatus: response.status,
+        details: result,
+        providerRaw: rawText ? String(rawText).slice(0, 800) : null
       });
       return;
     }
