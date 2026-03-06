@@ -308,7 +308,7 @@ module.exports = async function handler(req, res) {
     );
 
     const qrCodeImageRaw = pickFirst(
-      data.pix && (data.pix.qrImage || data.pix.image || data.pix.base64),
+      data.pix && (data.pix.qrImage || data.pix.image || data.pix.base64 || data.pix.qrcode),
       data.qrCodeBase64,
       data.qr_code_base64,
       data.qrImage,

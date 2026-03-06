@@ -549,7 +549,7 @@ module.exports = async function handler(req, res) {
     );
 
     let qrCodeImageRaw = pickFirst(
-      tx.pix && (tx.pix.qrImage || tx.pix.image || tx.pix.base64),
+      tx.pix && (tx.pix.qrImage || tx.pix.image || tx.pix.base64 || tx.pix.qrcode),
       tx.qrCodeBase64,
       tx.qr_code_base64,
       tx.qrImage,
