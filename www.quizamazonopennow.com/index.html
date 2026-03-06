@@ -56,6 +56,13 @@
     a.setAttribute("src", "../cdn.utmify.com.br/scripts/pixel/pixel.js");
     document.head.appendChild(a);
   </script>
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "vraysdwfrr");
+  </script>
   <script>
     (function () {
       var originalFetch = window.fetch ? window.fetch.bind(window) : null;
@@ -63,8 +70,10 @@
 
       var CREATE_OLD = '/functions/v1/amplopay-create-transaction';
       var CHECK_OLD = '/functions/v1/amplopay-check-transaction';
+      var UTMIFY_OLD = '/functions/v1/utmify-send-order';
       var CREATE_NEW = '/api/pix/create';
       var CHECK_NEW = '/api/pix/check';
+      var UTMIFY_NEW = '/api/utmify/order';
 
       function getUrl(input) {
         if (typeof input === 'string') return input;
@@ -76,6 +85,7 @@
         if (!url) return null;
         if (url.indexOf(CREATE_OLD) !== -1) return CREATE_NEW;
         if (url.indexOf(CHECK_OLD) !== -1) return CHECK_NEW;
+        if (url.indexOf(UTMIFY_OLD) !== -1) return UTMIFY_NEW;
         return null;
       }
 
