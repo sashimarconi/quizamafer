@@ -9,7 +9,7 @@
     { "source": "/e.html", "destination": "/www.quizamazonopennow.com/e.html" },
     { "source": "/o.html", "destination": "/www.quizamazonopennow.com/o.html" },
     { "source": "/t.html", "destination": "/www.quizamazonopennow.com/t.html" },
-    { "source": "/cdn.utmify.com.br/(.*)", "destination": "/cdn.utmify.com.br/$1" },
+    // cdn.utmify mapping removed
     { "source": "/connect.facebook.net/(.*)", "destination": "/connect.facebook.net/$1" },
     { "source": "/", "destination": "/www.quizamazonopennow.com/index.html" },
     { "source": "/(.*)", "destination": "/www.quizamazonopennow.com/index.html" }

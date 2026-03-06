@@ -1,6 +1,5 @@
 const GHOSTS_CREATE_URL = 'https://api.ghostspaysv2.com/functions/v1/transactions';
 const DEFAULT_PRODUCT_HASH = 'prod_bc6860b7c055edfe';
-const UTMIFY_ORDERS_URL = 'https://api.utmify.com.br/api-credentials/orders';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -199,52 +198,7 @@ function buildUtmifyWaitingPayload(transactionId, body, amountInCents, trackingP
   };
 }
 
-async function sendUtmifyWaitingUpdate(transactionId, body, amountInCents, trackingParameters) {
-  const utmifyToken = String(process.env.UTMIFY_API_TOKEN || '').trim();
-  if (!utmifyToken) {
-    return { skipped: true, reason: 'missing-token' };
-  }
-
-  if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
-    return { skipped: true, reason: 'missing-amount' };
-  }
-
-  const payload = buildUtmifyWaitingPayload(transactionId, body, amountInCents, trackingParameters);
-
-  const response = await fetch(UTMIFY_ORDERS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-token': utmifyToken
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const text = await response.text();
-  let parsed = null;
-
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
-  }
-
-  if (!response.ok) {
-    return {
-      skipped: false,
-      ok: false,
-      status: response.status,
-      body: parsed || text || null
-    };
-  }
-
-  return {
-    skipped: false,
-    ok: true,
-    status: response.status,
-    body: parsed || text || null
-  };
-}
+// UTMify integration removed
 
 function parseProductsMap(rawValue) {
   if (!rawValue) return {};
@@ -620,18 +574,6 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const utmifyResult = await sendUtmifyWaitingUpdate(
-      transactionId,
-      body,
-      amountInCents,
-      trackingParameters
-    ).catch((error) => ({
-      skipped: false,
-      ok: false,
-      status: null,
-      body: error instanceof Error ? error.message : String(error)
-    }));
-
     sendJson(res, 200, {
       transactionId,
       status: rawStatus,
@@ -654,7 +596,7 @@ module.exports = async function handler(req, res) {
         hashMode: productHash ? 'provided' : 'not_provided',
         providerUrl: usedUrl
       },
-      utmify: utmifyResult
+      // utmify removed
     });
   } catch (error) {
     sendJson(res, 500, {

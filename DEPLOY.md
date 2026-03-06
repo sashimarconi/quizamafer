@@ -5,26 +5,15 @@ No projeto da Vercel, adicione em **Settings > Environment Variables**:
 
 - `PARADISE_API_KEY`
 - `PARADISE_UPSELL_URL`
-- `UTMIFY_API_TOKEN`
+ (UTMify integration removed)
 
 Com isso o backend já funciona no modo simplificado.
 
 Variáveis avançadas (opcionais):
 - `PARADISE_PRODUCTS_JSON` (recomendado para múltiplos produtos)
 - `PARADISE_PRICE_TABLE_JSON` (recomendado para preço dinâmico: kit + bumps + frete)
-- `UTMIFY_PLATFORM` (padrão: `QuizAmazon`)
-- `UTMIFY_IS_TEST` (`true` para validar sem salvar pedidos)
 
-Use os dados privados da Paradise no backend (não exponha no frontend).
-O token da UTMify também deve ficar apenas no backend.
-
-## UTMify (envio de pedidos)
-
-- Endpoint local: `/api/utmify/order`
-- Proxy para: `https://api.utmify.com.br/api-credentials/orders`
-- Header enviado: `x-api-token: UTMIFY_API_TOKEN`
-
-O frontend já redireciona chamadas legadas de `utmify-send-order` para `/api/utmify/order`, sem alterar o bundle minificado.
+Use os dados privados no backend (não exponha no frontend).
 
 ### Exemplo `PARADISE_PRODUCTS_JSON`
 
@@ -76,7 +65,7 @@ git push -u origin main
 Use as credenciais do GhostsPay no backend (não exponha no frontend).
 O token da UTMify também deve ficar apenas no backend.
 ## 3) Importar na Vercel
-- Acesse https://vercel.com/new
+O envio automático de pedidos para UTMify foi removido deste projeto.
 ### Exemplo `GHOSTS_PRODUCTS_JSON`
 - Deploy
 

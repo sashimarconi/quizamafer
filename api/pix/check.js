@@ -1,5 +1,4 @@
 const GHOSTS_BASE_URL = 'https://api.ghostspaysv2.com/functions/v1/transactions';
-const UTMIFY_ORDERS_URL = 'https://api.utmify.com.br/api-credentials/orders';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -203,52 +202,7 @@ function buildUtmifyPaidPayload(transactionId, data, context = {}) {
   };
 }
 
-async function sendUtmifyPaidUpdate(transactionId, data, context = {}) {
-  const utmifyToken = String(process.env.UTMIFY_API_TOKEN || '').trim();
-  if (!utmifyToken) {
-    return { skipped: true, reason: 'missing-token' };
-  }
-
-  const payload = buildUtmifyPaidPayload(transactionId, data, context);
-
-  if (!payload.commission.totalPriceInCents || payload.commission.totalPriceInCents <= 0) {
-    return { skipped: true, reason: 'missing-amount' };
-  }
-
-  const response = await fetch(UTMIFY_ORDERS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-token': utmifyToken
-    },
-    body: JSON.stringify(payload)
-  });
-
-  const text = await response.text();
-  let parsed = null;
-
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
-  }
-
-  if (!response.ok) {
-    return {
-      skipped: false,
-      ok: false,
-      status: response.status,
-      body: parsed || text || null
-    };
-  }
-
-  return {
-    skipped: false,
-    ok: true,
-    status: response.status,
-    body: parsed || text || null
-  };
-}
+// UTMify integration removed
 
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
@@ -329,20 +283,13 @@ module.exports = async function handler(req, res) {
     };
 
     if (mappedStatus === 'paid') {
-      const utmifyResult = await sendUtmifyPaidUpdate(transactionId, data, context).catch((error) => ({
-        skipped: false,
-        ok: false,
-        status: null,
-        body: error instanceof Error ? error.message : String(error)
-      }));
       sendJson(res, 200, {
         status: 'paid',
         redirect_url: upsellUrl || null,
         source: 'ghostspays',
         checkerVersion: 'vercel-proxy-v1',
         checkedIds: [transactionId],
-        rawStatus: rawStatus || 'paid',
-        utmify: utmifyResult
+        rawStatus: rawStatus || 'paid'
       });
       return;
     }
