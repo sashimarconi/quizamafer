@@ -567,6 +567,18 @@ module.exports = async function handler(req, res) {
             ? `data:image/png;base64,${qrCodeImageRaw}`
             : null;
 
+    // If we only have the EMV/copia-e-cola (qrCodeText) and no image, generate a QR image URL
+    if (!qrCodeImage && qrCodeText && typeof qrCodeText === 'string') {
+      try {
+        const emv = qrCodeText.trim();
+        if (emv.length > 0) {
+          qrCodeImage = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(emv)}`;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     const rawStatus = String(pickFirst(tx.status, tx.payment_status, tx.paymentStatus) || 'pending').toLowerCase();
 
     if (!transactionId) {
@@ -637,9 +649,21 @@ module.exports = async function handler(req, res) {
             );
             qrCodeImage = typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
               ? qrCodeImageRaw
-              : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
-                ? `data:image/png;base64,${qrCodeImageRaw}`
-                : null;
+              : typeof qrCodeImageRaw === 'string' && (qrCodeImageRaw.startsWith('http://') || qrCodeImageRaw.startsWith('https://'))
+                ? qrCodeImageRaw
+                : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
+                  ? `data:image/png;base64,${qrCodeImageRaw}`
+                  : null;
+
+            // fallback to generated QR image if we only have the EMV code
+            if (!qrCodeImage && qrCodeText && typeof qrCodeText === 'string') {
+              try {
+                const emv = qrCodeText.trim();
+                if (emv.length > 0) {
+                  qrCodeImage = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(emv)}`;
+                }
+              } catch (e) {}
+            }
             break;
           }
         }
@@ -676,6 +700,10 @@ module.exports = async function handler(req, res) {
         base64: qrCodeImageRaw || null,
         expiresAt: pickFirst(tx.expiresAt, tx.expires_at) || null
       },
+      // convenience fields for legacy/minified frontend
+      qrCode: qrCodeImage,
+      pixCopyPaste: qrCodeText,
+      qrCodeImageUrl: qrCodeImage,
       _identifiers: {
         identifier: transactionId
       },

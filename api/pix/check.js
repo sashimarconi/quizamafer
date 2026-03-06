@@ -325,6 +325,18 @@ module.exports = async function handler(req, res) {
           : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
             ? `data:image/png;base64,${qrCodeImageRaw}`
             : null;
+
+    // fallback: if we only have the EMV/copy-paste code (qrCodeText), generate QR image URL
+    if (!qrCodeImage && qrCodeText && typeof qrCodeText === 'string') {
+      try {
+        const emv = qrCodeText.trim();
+        if (emv.length > 0) {
+          qrCodeImage = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(emv)}`;
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
     const bodyAmountRaw = Number(body.totalPriceInCents || body.amountInCents || body.amount || 0);
     const bodyAmountInCents = Number.isFinite(bodyAmountRaw) && bodyAmountRaw > 0
       ? Math.round(bodyAmountRaw)
@@ -352,6 +364,11 @@ module.exports = async function handler(req, res) {
         base64: qrCodeImageRaw || null,
         expiresAt: pickFirst(data.expiresAt, data.expires_at) || null
       };
+
+      // convenience fields for legacy/minified frontend
+      baseResponse.qrCode = qrCodeImage;
+      baseResponse.pixCopyPaste = qrCodeText;
+      baseResponse.qrCodeImageUrl = qrCodeImage;
     }
 
     if (mappedStatus === 'paid') {
