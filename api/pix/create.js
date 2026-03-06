@@ -3,6 +3,7 @@ const PARADISE_CREATE_URLS = [
   'https://multi.paradisepags.com/api/v1/transaction.php'
 ];
 const DEFAULT_PARADISE_PRODUCT_HASH = 'prod_bc6860b7c055edfe';
+const UTMIFY_ORDERS_URL = 'https://api.utmify.com.br/api-credentials/orders';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -87,6 +88,165 @@ function pickFirst(...values) {
     }
   }
   return null;
+}
+
+function parseQueryFromUrl(url) {
+  if (!url || typeof url !== 'string') return {};
+
+  try {
+    const parsed = new URL(url, 'http://localhost');
+    const output = {};
+
+    ['src', 'sck', 'utm_source', 'utm_campaign', 'utm_medium', 'utm_content', 'utm_term'].forEach((key) => {
+      const value = parsed.searchParams.get(key);
+      if (value && String(value).trim() !== '') {
+        output[key] = String(value).trim();
+      }
+    });
+
+    return output;
+  } catch {
+    return {};
+  }
+}
+
+function toNullOrTrimmedString(value) {
+  if (value === undefined || value === null) return null;
+  const raw = String(value).trim();
+  return raw ? raw : null;
+}
+
+function resolveTrackingParameters(req, body) {
+  const fromBody = body && typeof body === 'object' ? body : {};
+  const explicit = fromBody.trackingParameters && typeof fromBody.trackingParameters === 'object'
+    ? fromBody.trackingParameters
+    : {};
+
+  const fromReferer = parseQueryFromUrl(req && req.headers ? req.headers.referer : null);
+  const fromUrl = parseQueryFromUrl(req && req.url ? req.url : null);
+
+  const resolved = {
+    src: toNullOrTrimmedString(pickFirst(explicit.src, fromBody.src, fromUrl.src, fromReferer.src)),
+    sck: toNullOrTrimmedString(pickFirst(explicit.sck, fromBody.sck, fromUrl.sck, fromReferer.sck)),
+    utm_source: toNullOrTrimmedString(pickFirst(explicit.utm_source, fromBody.utm_source, fromUrl.utm_source, fromReferer.utm_source)),
+    utm_campaign: toNullOrTrimmedString(pickFirst(explicit.utm_campaign, fromBody.utm_campaign, fromUrl.utm_campaign, fromReferer.utm_campaign)),
+    utm_medium: toNullOrTrimmedString(pickFirst(explicit.utm_medium, fromBody.utm_medium, fromUrl.utm_medium, fromReferer.utm_medium)),
+    utm_content: toNullOrTrimmedString(pickFirst(explicit.utm_content, fromBody.utm_content, fromUrl.utm_content, fromReferer.utm_content)),
+    utm_term: toNullOrTrimmedString(pickFirst(explicit.utm_term, fromBody.utm_term, fromUrl.utm_term, fromReferer.utm_term))
+  };
+
+  return resolved;
+}
+
+function toUtcDateTime(input) {
+  const date = input ? new Date(input) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return toUtcDateTime(null);
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hour = String(date.getUTCHours()).padStart(2, '0');
+  const minute = String(date.getUTCMinutes()).padStart(2, '0');
+  const second = String(date.getUTCSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+}
+
+function buildUtmifyWaitingPayload(transactionId, body, amountInCents, trackingParameters) {
+  const customerInput = body && body.customer && typeof body.customer === 'object' ? body.customer : {};
+  const customer = {
+    name: String(pickFirst(customerInput.name, body.customer_name, 'Cliente')).trim(),
+    email: String(pickFirst(customerInput.email, body.customer_email, 'cliente@email.com')).trim(),
+    phone: onlyDigits(pickFirst(customerInput.phone, body.customer_phone)) || null,
+    document: onlyDigits(pickFirst(customerInput.document, customerInput.cpf, body.customer_document)) || null,
+    country: 'BR'
+  };
+
+  const productName = String(
+    pickFirst(
+      body.kitName,
+      body.productName,
+      body.product_name,
+      body.metadata && body.metadata.kitName,
+      'Kit AmazonBox'
+    )
+  );
+
+  return {
+    orderId: String(transactionId),
+    platform: String(process.env.UTMIFY_PLATFORM || 'QuizAmazon').trim() || 'QuizAmazon',
+    paymentMethod: 'pix',
+    status: 'waiting_payment',
+    createdAt: toUtcDateTime(null),
+    approvedDate: null,
+    refundedAt: null,
+    customer,
+    products: [
+      {
+        id: 'kit',
+        name: productName,
+        planId: 'kit',
+        planName: productName,
+        quantity: 1,
+        priceInCents: amountInCents
+      }
+    ],
+    trackingParameters,
+    commission: {
+      totalPriceInCents: amountInCents,
+      gatewayFeeInCents: 0,
+      userCommissionInCents: amountInCents
+    }
+  };
+}
+
+async function sendUtmifyWaitingUpdate(transactionId, body, amountInCents, trackingParameters) {
+  const utmifyToken = String(process.env.UTMIFY_API_TOKEN || '').trim();
+  if (!utmifyToken) {
+    return { skipped: true, reason: 'missing-token' };
+  }
+
+  if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+    return { skipped: true, reason: 'missing-amount' };
+  }
+
+  const payload = buildUtmifyWaitingPayload(transactionId, body, amountInCents, trackingParameters);
+
+  const response = await fetch(UTMIFY_ORDERS_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-token': utmifyToken
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const text = await response.text();
+  let parsed = null;
+
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok) {
+    return {
+      skipped: false,
+      ok: false,
+      status: response.status,
+      body: parsed || text || null
+    };
+  }
+
+  return {
+    skipped: false,
+    ok: true,
+    status: response.status,
+    body: parsed || text || null
+  };
 }
 
 function parseProductsMap(rawValue) {
@@ -351,6 +511,7 @@ module.exports = async function handler(req, res) {
   }
 
   const resolvedCustomer = resolveCustomer(body.customer);
+  const trackingParameters = resolveTrackingParameters(req, body);
 
   const payload = {
     amount: amountInCents,
@@ -460,6 +621,18 @@ module.exports = async function handler(req, res) {
       return;
     }
 
+    const utmifyResult = await sendUtmifyWaitingUpdate(
+      transactionId,
+      body,
+      amountInCents,
+      trackingParameters
+    ).catch((error) => ({
+      skipped: false,
+      ok: false,
+      status: null,
+      body: error instanceof Error ? error.message : String(error)
+    }));
+
     sendJson(res, 200, {
       transactionId,
       status: rawStatus,
@@ -480,7 +653,8 @@ module.exports = async function handler(req, res) {
         redirectConfigured: Boolean(upsellUrl),
         productKey: matchedProduct?.key || 'fallback',
         hashMode: productHash ? 'provided' : 'not_provided'
-      }
+      },
+      utmify: utmifyResult
     });
   } catch (error) {
     sendJson(res, 500, {
