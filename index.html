@@ -1,16 +1,117 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Redirecionando...</title>
-  <meta http-equiv="refresh" content="0; URL=/www.quizamazonopennow.com/index.html" />
+    <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;800;900&amp;display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amazon Open Now</title>
+    <meta name="description" content="Compre sua caixa e abra na mesma hora.">
+    <meta name="author" content="Lovable" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/441c2050-bde4-40a5-9eca-f8d3f37a286f?Expires=1772338599&amp;GoogleAccessId=go-api-on-aws%40gpt-engineer-390607.iam.gserviceaccount.com&amp;Signature=mwWGV4sjw0IV5KJ77YkVk66NqPNANMWNhssklg%2BBz50KAFZqlWLy1G9qavT3KEV55nhmFiL1G2%2FXaWpSIXvjb1%2BAWguQoiM74pWevsn0CQOwWfw2pFCwm%2B6Bvo4zFmtShU9QVs459oA8wXT2wxPOqSlRiV%2BRJNBalJoF7Tivwr%2BkANTfsFq%2FM4oNK6XhtezvmIRyehuQnXiZ8ZjtTOWdWByc%2BVvJJemd2WM1Jq%2FY2V7P4SoSmYIGwVfIhjQY%2BnM0QMmQ%2FPmaLTwry2FYNk6AgSkgVn5iFHo6Tb3bZRr%2FRQI32MM%2BxpofQlYShUv1VEEelK5a5Ot7b7F1ga8%2FhzpI1Q%3D%3D">
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/441c2050-bde4-40a5-9eca-f8d3f37a286f?Expires=1772338599&amp;GoogleAccessId=go-api-on-aws%40gpt-engineer-390607.iam.gserviceaccount.com&amp;Signature=mwWGV4sjw0IV5KJ77YkVk66NqPNANMWNhssklg%2BBz50KAFZqlWLy1G9qavT3KEV55nhmFiL1G2%2FXaWpSIXvjb1%2BAWguQoiM74pWevsn0CQOwWfw2pFCwm%2B6Bvo4zFmtShU9QVs459oA8wXT2wxPOqSlRiV%2BRJNBalJoF7Tivwr%2BkANTfsFq%2FM4oNK6XhtezvmIRyehuQnXiZ8ZjtTOWdWByc%2BVvJJemd2WM1Jq%2FY2V7P4SoSmYIGwVfIhjQY%2BnM0QMmQ%2FPmaLTwry2FYNk6AgSkgVn5iFHo6Tb3bZRr%2FRQI32MM%2BxpofQlYShUv1VEEelK5a5Ot7b7F1ga8%2FhzpI1Q%3D%3D">
+
+  <meta property="og:title" content="Amazon Open Now">
+  <meta name="twitter:title" content="Amazon Open Now">
+  <meta property="og:description" content="Compre sua caixa e abra na mesma hora.">
+  <meta name="twitter:description" content="Compre sua caixa e abra na mesma hora.">
+
   <script>
-    window.location.replace('/www.quizamazonopennow.com/index.html');
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    '../connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1302577091921137');
+    fbq('track', 'PageView');
   </script>
+
+  <script src="../cdn.utmify.com.br/scripts/utms/latest.js" data-utmify-prevent-xcod-sck data-utmify-prevent-subids async defer></script>
+  <script>
+    window.pixelId = "69a72f69d91e70e321b8b35e";
+    var a = document.createElement("script");
+    a.setAttribute("async", "");
+    a.setAttribute("defer", "");
+    a.setAttribute("src", "../cdn.utmify.com.br/scripts/pixel/pixel.js");
+    document.head.appendChild(a);
+  </script>
+  <script>
+    (function () {
+      var originalFetch = window.fetch ? window.fetch.bind(window) : null;
+      if (!originalFetch) return;
+
+      var CREATE_OLD = '/functions/v1/amplopay-create-transaction';
+      var CHECK_OLD = '/functions/v1/amplopay-check-transaction';
+      var CREATE_NEW = '/api/pix/create';
+      var CHECK_NEW = '/api/pix/check';
+
+      function getUrl(input) {
+        if (typeof input === 'string') return input;
+        if (input && typeof input.url === 'string') return input.url;
+        return '';
+      }
+
+      function getTarget(url) {
+        if (!url) return null;
+        if (url.indexOf(CREATE_OLD) !== -1) return CREATE_NEW;
+        if (url.indexOf(CHECK_OLD) !== -1) return CHECK_NEW;
+        return null;
+      }
+
+      async function readBody(input, init) {
+        if (init && typeof init.body !== 'undefined') return init.body;
+        if (typeof Request !== 'undefined' && input instanceof Request) {
+          try {
+            var clone = input.clone();
+            var text = await clone.text();
+            return text || '{}';
+          } catch (_) {
+            return '{}';
+          }
+        }
+        return '{}';
+      }
+
+      window.fetch = async function (input, init) {
+        var url = getUrl(input);
+        var target = getTarget(url);
+
+        if (!target) {
+          return originalFetch(input, init);
+        }
+
+        var body = await readBody(input, init);
+
+        return originalFetch(target, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: body,
+          credentials: 'same-origin'
+        });
+      };
+    })();
+  </script>
+  <script type="module" crossorigin src="assets/index-B_ftFdO6.js"></script>
+  <link rel="stylesheet" crossorigin href="assets/index-DWC34VYY.css">
+  <script defer src="_flock.js" data-proxy-url="https://www.quizamazonopennow.com/~api/analytics"></script>
 </head>
+
 <body>
-  <p>Redirecionando para a aplicação...</p>
+  <div id="root"></div>
+  <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=1302577091921137&amp;ev=PageView&amp;noscript=1"
+  /></noscript>
 </body>
 </html>
 
