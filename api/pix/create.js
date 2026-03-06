@@ -538,6 +538,7 @@ module.exports = async function handler(req, res) {
 
     let qrCodeText = pickFirst(
       tx.pix && tx.pix.code,
+      tx.pix && tx.pix.qrcode,
       tx.pixCode,
       tx.pix_code,
       tx.qrCode,
@@ -560,9 +561,11 @@ module.exports = async function handler(req, res) {
     let qrCodeImage =
       typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
         ? qrCodeImageRaw
-        : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
-          ? `data:image/png;base64,${qrCodeImageRaw}`
-          : null;
+        : typeof qrCodeImageRaw === 'string' && (qrCodeImageRaw.startsWith('http://') || qrCodeImageRaw.startsWith('https://'))
+          ? qrCodeImageRaw
+          : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
+            ? `data:image/png;base64,${qrCodeImageRaw}`
+            : null;
 
     const rawStatus = String(pickFirst(tx.status, tx.payment_status, tx.paymentStatus) || 'pending').toLowerCase();
 

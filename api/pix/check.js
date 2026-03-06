@@ -297,6 +297,7 @@ module.exports = async function handler(req, res) {
 
     const qrCodeText = pickFirst(
       data.pix && data.pix.code,
+      data.pix && data.pix.qrcode,
       data.pixCode,
       data.pix_code,
       data.qrCode,
@@ -319,9 +320,11 @@ module.exports = async function handler(req, res) {
     const qrCodeImage =
       typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
         ? qrCodeImageRaw
-        : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
-          ? `data:image/png;base64,${qrCodeImageRaw}`
-          : null;
+        : typeof qrCodeImageRaw === 'string' && (qrCodeImageRaw.startsWith('http://') || qrCodeImageRaw.startsWith('https://'))
+          ? qrCodeImageRaw
+          : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
+            ? `data:image/png;base64,${qrCodeImageRaw}`
+            : null;
     const bodyAmountRaw = Number(body.totalPriceInCents || body.amountInCents || body.amount || 0);
     const bodyAmountInCents = Number.isFinite(bodyAmountRaw) && bodyAmountRaw > 0
       ? Math.round(bodyAmountRaw)
