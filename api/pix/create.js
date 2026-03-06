@@ -1,4 +1,7 @@
-const PARADISE_CREATE_URL = 'https://multi.paradisepags.com/api/v1/transaction';
+const PARADISE_CREATE_URLS = [
+  'https://multi.paradisepags.com/api/v1/transaction',
+  'https://multi.paradisepags.com/api/v1/transaction.php'
+];
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -361,28 +364,44 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const response = await fetch(PARADISE_CREATE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const rawText = await response.text();
+    let response = null;
+    let rawText = '';
     let result = {};
+    let usedUrl = PARADISE_CREATE_URLS[0];
 
-    try {
-      result = rawText ? JSON.parse(rawText) : {};
-    } catch {
-      result = {};
+    for (const candidateUrl of PARADISE_CREATE_URLS) {
+      usedUrl = candidateUrl;
+      response = await fetch(candidateUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey
+        },
+        body: JSON.stringify(payload)
+      });
+
+      rawText = await response.text();
+
+      try {
+        result = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        result = {};
+      }
+
+      if (response.ok) {
+        break;
+      }
+
+      if (response.status !== 404) {
+        break;
+      }
     }
 
-    if (!response.ok) {
+    if (!response || !response.ok) {
       sendJson(res, 502, {
         error: result.message || result.error || 'Falha ao criar transação no Paradise.',
-        providerStatus: response.status,
+        providerStatus: response ? response.status : null,
+        providerUrl: usedUrl,
         details: result,
         providerRaw: rawText ? String(rawText).slice(0, 800) : null
       });
