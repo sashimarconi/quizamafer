@@ -522,7 +522,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const tx = result.data || result.transaction || result;
+    let tx = result.data || result.transaction || result;
 
     const transactionId = String(
       pickFirst(
@@ -536,7 +536,7 @@ module.exports = async function handler(req, res) {
       ) || ''
     );
 
-    const qrCodeText = pickFirst(
+    let qrCodeText = pickFirst(
       tx.pix && tx.pix.code,
       tx.pixCode,
       tx.pix_code,
@@ -547,7 +547,7 @@ module.exports = async function handler(req, res) {
       tx.emv
     );
 
-    const qrCodeImageRaw = pickFirst(
+    let qrCodeImageRaw = pickFirst(
       tx.pix && (tx.pix.qrImage || tx.pix.image || tx.pix.base64),
       tx.qrCodeBase64,
       tx.qr_code_base64,
@@ -557,7 +557,7 @@ module.exports = async function handler(req, res) {
       tx.pix_qr_code_base64
     );
 
-    const qrCodeImage =
+    let qrCodeImage =
       typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
         ? qrCodeImageRaw
         : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
@@ -574,22 +574,91 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    // GhostsPay may create the transaction first and generate PIX/QR later.
-    // If no QR/code is present, return the minimal info so frontend can poll `/api/pix/check`.
+    // GhostsPay may create the transaction first and generate PIX/QR a short time later.
+    // Try a few quick polls to the transaction endpoint to see if QR becomes available.
     if (!qrCodeText) {
-      sendJson(res, 200, {
-        transactionId,
-        status: rawStatus,
-        order: { id: transactionId },
-        pix: null,
-        _provider: {
-          name: 'ghostspays',
-          providerUrl: usedUrl,
-          productKey: matchedProduct?.key || 'fallback'
-        },
-        _rawProviderResponse: result
-      });
-      return;
+      try {
+        const maxAttempts = 6;
+        const intervalMs = 700;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+          // small delay before polling
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((r) => setTimeout(r, intervalMs));
+
+          // poll transaction
+          // eslint-disable-next-line no-await-in-loop
+          const pollResp = await fetch(`${usedUrl}/${transactionId}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Basic ${credentials}`
+            }
+          }).catch(() => null);
+
+          if (!pollResp) continue;
+
+          // eslint-disable-next-line no-await-in-loop
+          const pollText = await pollResp.text().catch(() => '');
+          let pollJson = {};
+          try {
+            pollJson = pollText ? JSON.parse(pollText) : {};
+          } catch {
+            pollJson = {};
+          }
+
+          const candidate = pollJson.data || pollJson.transaction || pollJson || {};
+
+          const candidateQr = pickFirst(
+            candidate.pix && candidate.pix.code,
+            candidate.pixCode,
+            candidate.pix_code,
+            candidate.qrCode,
+            candidate.qr_code,
+            candidate.copyPaste,
+            candidate.copy_paste,
+            candidate.emv
+          );
+
+          if (candidateQr) {
+            tx = candidate;
+            qrCodeText = candidateQr;
+            qrCodeImageRaw = pickFirst(
+              candidate.pix && (candidate.pix.qrImage || candidate.pix.image || candidate.pix.base64),
+              candidate.qrCodeBase64,
+              candidate.qr_code_base64,
+              candidate.qrImage,
+              candidate.qr_image,
+              candidate.pixQrCodeBase64,
+              candidate.pix_qr_code_base64
+            );
+            qrCodeImage = typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
+              ? qrCodeImageRaw
+              : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
+                ? `data:image/png;base64,${qrCodeImageRaw}`
+                : null;
+            break;
+          }
+        }
+      } catch (err) {
+        // ignore polling errors and fall back to returning minimal response
+      }
+
+      if (!qrCodeText) {
+        sendJson(res, 200, {
+          transactionId,
+          status: rawStatus,
+          order: { id: transactionId },
+          pix: null,
+          _provider: {
+            name: 'ghostspays',
+            providerUrl: usedUrl,
+            productKey: matchedProduct?.key || 'fallback'
+          },
+          _rawProviderResponse: result
+        });
+        return;
+      }
     }
 
     sendJson(res, 200, {
