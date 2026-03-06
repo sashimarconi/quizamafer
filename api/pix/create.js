@@ -64,6 +64,37 @@ function pickFirst(...values) {
   return null;
 }
 
+function parseProductsMap(rawValue) {
+  if (!rawValue) return {};
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function normalizeProductConfig(value) {
+  if (!value || typeof value !== 'object') return null;
+
+  const hash = pickFirst(value.hash, value.productHash, value.product_hash);
+  const amountRaw = pickFirst(value.amountCents, value.amount_cents, value.amount);
+  const amount = Number(amountRaw || 0);
+
+  if (!hash || !Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+
+  return {
+    productHash: String(hash).trim(),
+    amountCents: Math.round(amount)
+  };
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -77,20 +108,12 @@ module.exports = async function handler(req, res) {
   }
 
   const apiKey = process.env.PARADISE_API_KEY;
-  const productHash = process.env.PARADISE_PRODUCT_HASH;
   const upsellUrl = process.env.PARADISE_UPSELL_URL;
-  const configuredAmount = Number(process.env.PARADISE_AMOUNT_CENTS || 0);
+  const productsMap = parseProductsMap(process.env.PARADISE_PRODUCTS_JSON);
 
   if (!apiKey) {
     sendJson(res, 500, {
       error: 'PARADISE_API_KEY não configurada no ambiente.'
-    });
-    return;
-  }
-
-  if (!productHash) {
-    sendJson(res, 500, {
-      error: 'PARADISE_PRODUCT_HASH não configurada no ambiente.'
     });
     return;
   }
@@ -103,12 +126,42 @@ module.exports = async function handler(req, res) {
   }
 
   const body = normalizeBody(req);
-  const incomingAmount = Number(body.amount || 0);
-  const amountInCents = configuredAmount > 0
-    ? Math.round(configuredAmount)
-    : Number.isFinite(incomingAmount) && incomingAmount > 0
-      ? Math.round(incomingAmount * 100)
-      : 0;
+  const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+  const requestedKey = String(
+    pickFirst(body.productKey, metadata.productKey, metadata.type, body.type, 'default')
+  ).trim();
+
+  const selectedMapConfig = normalizeProductConfig(productsMap[requestedKey]);
+  const defaultMapConfig = normalizeProductConfig(productsMap.default);
+
+  const envSingleProductHash = pickFirst(
+    process.env.PARADISE_PRODUCT_HASH,
+    process.env.PARADISE_DEFAULT_PRODUCT_HASH
+  );
+  const envSingleAmount = Number(
+    pickFirst(process.env.PARADISE_AMOUNT_CENTS, process.env.PARADISE_DEFAULT_AMOUNT_CENTS) || 0
+  );
+
+  const fallbackSingleConfig =
+    envSingleProductHash && Number.isFinite(envSingleAmount) && envSingleAmount > 0
+      ? {
+          productHash: String(envSingleProductHash).trim(),
+          amountCents: Math.round(envSingleAmount)
+        }
+      : null;
+
+  const effectiveConfig = selectedMapConfig || defaultMapConfig || fallbackSingleConfig;
+
+  if (!effectiveConfig) {
+    sendJson(res, 500, {
+      error:
+        'Configure PARADISE_PRODUCTS_JSON (recomendado) ou PARADISE_PRODUCT_HASH + PARADISE_AMOUNT_CENTS.'
+    });
+    return;
+  }
+
+  const amountInCents = effectiveConfig.amountCents;
+  const productHash = effectiveConfig.productHash;
 
   if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
     sendJson(res, 400, { error: 'Valor inválido para criação do PIX.' });
@@ -214,7 +267,8 @@ module.exports = async function handler(req, res) {
       },
       _provider: {
         name: 'paradisepags',
-        redirectConfigured: Boolean(upsellUrl)
+        redirectConfigured: Boolean(upsellUrl),
+        productKey: requestedKey
       }
     });
   } catch (error) {

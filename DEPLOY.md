@@ -4,11 +4,31 @@
 No projeto da Vercel, adicione em **Settings > Environment Variables**:
 
 - `PARADISE_API_KEY`
-- `PARADISE_PRODUCT_HASH`
-- `PARADISE_AMOUNT_CENTS`
 - `PARADISE_UPSELL_URL`
+- `PARADISE_PRODUCTS_JSON` (recomendado para múltiplos produtos)
 
 Use os dados privados da Paradise no backend (não exponha no frontend).
+
+### Exemplo `PARADISE_PRODUCTS_JSON`
+
+```json
+{
+	"default": { "productHash": "hash_padrao", "amountCents": 1000 },
+	"freight": { "productHash": "hash_frete", "amountCents": 1990 },
+	"bronze": { "productHash": "hash_bronze", "amountCents": 2990 },
+	"prata": { "productHash": "hash_prata", "amountCents": 4990 },
+	"ouro": { "productHash": "hash_ouro", "amountCents": 7990 }
+}
+```
+
+O backend escolhe a chave por `productKey` ou `metadata.type` vindo da chamada.
+
+### Fallback (produto único)
+
+Se não quiser usar JSON, mantenha:
+
+- `PARADISE_PRODUCT_HASH`
+- `PARADISE_AMOUNT_CENTS`
 
 ## 2) Publicar no GitHub
 No terminal, dentro da pasta do projeto:
