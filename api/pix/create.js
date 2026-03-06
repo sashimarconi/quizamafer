@@ -715,6 +715,8 @@ module.exports = async function handler(req, res) {
         providerUrl: usedUrl
       },
       // utmify removed
+        _rawProviderResponseText: rawText ? String(rawText).slice(0, 2000) : null,
+        _providerResponse: result || null
     });
   } catch (error) {
     sendJson(res, 500, {

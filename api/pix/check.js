@@ -369,6 +369,8 @@ module.exports = async function handler(req, res) {
       baseResponse.qrCode = qrCodeImage;
       baseResponse.pixCopyPaste = qrCodeText;
       baseResponse.qrCodeImageUrl = qrCodeImage;
+      baseResponse._rawProviderResponseText = text ? String(text).slice(0, 2000) : null;
+      baseResponse._providerResponse = result || null;
     }
 
     if (mappedStatus === 'paid') {
