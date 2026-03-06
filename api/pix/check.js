@@ -270,6 +270,46 @@ module.exports = async function handler(req, res) {
     const data = result.data || result.transaction || result;
     const rawStatus = pickFirst(data.status, data.payment_status, data.paymentStatus, data.transaction_status);
     const mappedStatus = mapStatus(rawStatus);
+
+    const transactionId = String(
+      pickFirst(
+        data.id,
+        data.uuid,
+        data.external_id,
+        data.externalId,
+        data.hash,
+        data.transaction_id,
+        data.transactionId
+      ) || transactionId || ''
+    );
+
+    const qrCodeText = pickFirst(
+      data.pix && data.pix.code,
+      data.pixCode,
+      data.pix_code,
+      data.qrCode,
+      data.qr_code,
+      data.copyPaste,
+      data.copy_paste,
+      data.emv
+    );
+
+    const qrCodeImageRaw = pickFirst(
+      data.pix && (data.pix.qrImage || data.pix.image || data.pix.base64),
+      data.qrCodeBase64,
+      data.qr_code_base64,
+      data.qrImage,
+      data.qr_image,
+      data.pixQrCodeBase64,
+      data.pix_qr_code_base64
+    );
+
+    const qrCodeImage =
+      typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.startsWith('data:image')
+        ? qrCodeImageRaw
+        : typeof qrCodeImageRaw === 'string' && qrCodeImageRaw.length > 0
+          ? `data:image/png;base64,${qrCodeImageRaw}`
+          : null;
     const bodyAmountRaw = Number(body.totalPriceInCents || body.amountInCents || body.amount || 0);
     const bodyAmountInCents = Number.isFinite(bodyAmountRaw) && bodyAmountRaw > 0
       ? Math.round(bodyAmountRaw)
@@ -282,25 +322,30 @@ module.exports = async function handler(req, res) {
       customer: body.customer && typeof body.customer === 'object' ? body.customer : null
     };
 
-    if (mappedStatus === 'paid') {
-      sendJson(res, 200, {
-        status: 'paid',
-        redirect_url: upsellUrl || null,
-        source: 'ghostspays',
-        checkerVersion: 'vercel-proxy-v1',
-        checkedIds: [transactionId],
-        rawStatus: rawStatus || 'paid'
-      });
-      return;
-    }
-
-    sendJson(res, 200, {
-      status: 'pending',
+    const baseResponse = {
+      status: mappedStatus,
       source: 'ghostspays',
       checkerVersion: 'vercel-proxy-v1',
       checkedIds: [transactionId],
-      rawStatus: rawStatus || 'pending'
-    });
+      rawStatus: rawStatus || mappedStatus
+    };
+
+    if (qrCodeText) {
+      baseResponse.pix = {
+        code: qrCodeText,
+        image: qrCodeImage,
+        base64: qrCodeImageRaw || null,
+        expiresAt: pickFirst(data.expiresAt, data.expires_at) || null
+      };
+    }
+
+    if (mappedStatus === 'paid') {
+      baseResponse.redirect_url = upsellUrl || null;
+      sendJson(res, 200, baseResponse);
+      return;
+    }
+
+    sendJson(res, 200, baseResponse);
   } catch (error) {
     sendJson(res, 500, {
       status: 'error',
