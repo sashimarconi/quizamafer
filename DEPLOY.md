@@ -6,6 +6,7 @@ No projeto da Vercel, adicione em **Settings > Environment Variables**:
 - `PARADISE_API_KEY`
 - `PARADISE_UPSELL_URL`
 - `PARADISE_PRODUCTS_JSON` (recomendado para múltiplos produtos)
+- `PARADISE_PRICE_TABLE_JSON` (recomendado para preço dinâmico: kit + bumps + frete)
 
 Use os dados privados da Paradise no backend (não exponha no frontend).
 
@@ -22,6 +23,21 @@ Use os dados privados da Paradise no backend (não exponha no frontend).
 ```
 
 O backend escolhe a chave por `productKey` ou `metadata.type` vindo da chamada.
+
+### Exemplo `PARADISE_PRICE_TABLE_JSON`
+
+```json
+{
+	"kits": { "bronze": 2000, "prata": 4000, "ouro": 6000 },
+	"bumps": { "premium": 990, "dobro": 1990, "apple": 2990 },
+	"freight": { "pac": 1390, "sedex": 1590, "express": 2590 }
+}
+```
+
+Regra aplicada no backend:
+- `type=kit`: valor = `kits[kitId] + soma(bumps selecionados)`
+- `type=freight`: valor = `freight[shippingId ou shippingName]`
+- só usa valor enviado pelo frontend como último fallback
 
 ### Fallback (produto único)
 

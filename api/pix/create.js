@@ -72,7 +72,11 @@ function parseProductsMap(rawValue) {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {};
     }
-    return parsed;
+    const normalized = {};
+    Object.entries(parsed).forEach(([key, value]) => {
+      normalized[String(key).toLowerCase()] = value;
+    });
+    return normalized;
   } catch {
     return {};
   }
@@ -85,14 +89,153 @@ function normalizeProductConfig(value) {
   const amountRaw = pickFirst(value.amountCents, value.amount_cents, value.amount);
   const amount = Number(amountRaw || 0);
 
-  if (!hash || !Number.isFinite(amount) || amount <= 0) {
+  if (!hash) {
     return null;
   }
 
+  const amountCents = Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null;
+
   return {
     productHash: String(hash).trim(),
-    amountCents: Math.round(amount)
+    amountCents
   };
+}
+
+function normalizeKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function parsePriceTable(rawValue) {
+  const defaults = {
+    kits: {
+      bronze: 2000,
+      prata: 4000,
+      ouro: 6000
+    },
+    bumps: {
+      premium: 990,
+      dobro: 1990,
+      apple: 2990
+    },
+    freight: {
+      pac: 1390,
+      sedex: 1590,
+      express: 2590
+    }
+  };
+
+  if (!rawValue) return defaults;
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return defaults;
+    }
+
+    const merged = {
+      kits: { ...defaults.kits },
+      bumps: { ...defaults.bumps },
+      freight: { ...defaults.freight }
+    };
+
+    ['kits', 'bumps', 'freight'].forEach((group) => {
+      const source = parsed[group];
+      if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+
+      Object.entries(source).forEach(([key, value]) => {
+        const normalizedGroupKey = normalizeKey(key);
+        const cents = Number(value);
+        if (!normalizedGroupKey || !Number.isFinite(cents) || cents <= 0) return;
+        merged[group][normalizedGroupKey] = Math.round(cents);
+      });
+    });
+
+    return merged;
+  } catch {
+    return defaults;
+  }
+}
+
+function resolveAmountFromMetadata(metadata, priceTable) {
+  const paymentType = normalizeKey(metadata.type || '');
+
+  if (paymentType === 'kit') {
+    const kitId = normalizeKey(metadata.kitId || '');
+    const base = priceTable.kits[kitId];
+    if (!Number.isFinite(base) || base <= 0) return null;
+
+    const selectedBumps = Array.isArray(metadata.selectedBumps) ? metadata.selectedBumps : [];
+    const bumpSum = selectedBumps
+      .map((item) => priceTable.bumps[normalizeKey(item)])
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .reduce((total, value) => total + value, 0);
+
+    return base + bumpSum;
+  }
+
+  if (paymentType === 'freight') {
+    const shippingId = normalizeKey(metadata.shippingId || '');
+    const shippingName = normalizeKey(metadata.shippingName || '');
+    const freight =
+      priceTable.freight[shippingId] ||
+      priceTable.freight[shippingName] ||
+      null;
+
+    return Number.isFinite(freight) && freight > 0 ? freight : null;
+  }
+
+  return null;
+}
+
+function buildProductKeys(metadata, body) {
+  const keys = [];
+  const paymentType = normalizeKey(metadata.type || body.type || body.productKey || 'default');
+  const productKey = normalizeKey(body.productKey || metadata.productKey || '');
+  const kitId = normalizeKey(metadata.kitId || body.kitId || '');
+  const shippingId = normalizeKey(metadata.shippingId || '');
+  const shippingName = normalizeKey(metadata.shippingName || '');
+  const selectedBumps = Array.isArray(metadata.selectedBumps)
+    ? metadata.selectedBumps.map((item) => normalizeKey(item)).filter(Boolean).sort()
+    : [];
+
+  if (productKey) keys.push(productKey);
+
+  if (paymentType === 'kit') {
+    if (kitId && selectedBumps.length) {
+      keys.push(`kit:${kitId}:bumps:${selectedBumps.join('+')}`);
+    }
+    if (kitId) keys.push(`kit:${kitId}`);
+    keys.push('kit');
+  }
+
+  if (paymentType === 'freight') {
+    if (shippingId) keys.push(`freight:${shippingId}`);
+    if (shippingName) keys.push(`freight:${shippingName}`);
+    keys.push('freight');
+  }
+
+  if (paymentType) keys.push(paymentType);
+  keys.push('default');
+
+  return Array.from(new Set(keys.map((item) => item.toLowerCase()).filter(Boolean)));
+}
+
+function resolveProductConfig(productsMap, keyCandidates) {
+  for (const key of keyCandidates) {
+    const config = normalizeProductConfig(productsMap[key]);
+    if (config) {
+      return {
+        key,
+        config
+      };
+    }
+  }
+  return null;
 }
 
 module.exports = async function handler(req, res) {
@@ -110,6 +253,7 @@ module.exports = async function handler(req, res) {
   const apiKey = process.env.PARADISE_API_KEY;
   const upsellUrl = process.env.PARADISE_UPSELL_URL;
   const productsMap = parseProductsMap(process.env.PARADISE_PRODUCTS_JSON);
+  const priceTable = parsePriceTable(process.env.PARADISE_PRICE_TABLE_JSON);
 
   if (!apiKey) {
     sendJson(res, 500, {
@@ -127,12 +271,8 @@ module.exports = async function handler(req, res) {
 
   const body = normalizeBody(req);
   const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
-  const requestedKey = String(
-    pickFirst(body.productKey, metadata.productKey, metadata.type, body.type, 'default')
-  ).trim();
-
-  const selectedMapConfig = normalizeProductConfig(productsMap[requestedKey]);
-  const defaultMapConfig = normalizeProductConfig(productsMap.default);
+  const productKeyCandidates = buildProductKeys(metadata, body);
+  const matchedProduct = resolveProductConfig(productsMap, productKeyCandidates);
 
   const envSingleProductHash = pickFirst(
     process.env.PARADISE_PRODUCT_HASH,
@@ -150,18 +290,39 @@ module.exports = async function handler(req, res) {
         }
       : null;
 
-  const effectiveConfig = selectedMapConfig || defaultMapConfig || fallbackSingleConfig;
+  const resolvedAmountFromMetadata = resolveAmountFromMetadata(metadata, priceTable);
+  const amountFromFrontend = Number(body.amount || 0);
 
-  if (!effectiveConfig) {
+  const amountInCents =
+    Number.isFinite(resolvedAmountFromMetadata) && resolvedAmountFromMetadata > 0
+      ? Math.round(resolvedAmountFromMetadata)
+      : matchedProduct && Number.isFinite(matchedProduct.config.amountCents)
+        ? Math.round(matchedProduct.config.amountCents)
+        : fallbackSingleConfig && Number.isFinite(fallbackSingleConfig.amountCents)
+          ? Math.round(fallbackSingleConfig.amountCents)
+          : Number.isFinite(amountFromFrontend) && amountFromFrontend > 0
+            ? Math.round(amountFromFrontend * 100)
+            : 0;
+
+  const productHash =
+    matchedProduct?.config.productHash ||
+    (fallbackSingleConfig ? fallbackSingleConfig.productHash : null);
+
+  if (!productHash) {
     sendJson(res, 500, {
       error:
-        'Configure PARADISE_PRODUCTS_JSON (recomendado) ou PARADISE_PRODUCT_HASH + PARADISE_AMOUNT_CENTS.'
+        'Configure PARADISE_PRODUCTS_JSON (hash por chave) ou PARADISE_PRODUCT_HASH para fallback.'
     });
     return;
   }
 
-  const amountInCents = effectiveConfig.amountCents;
-  const productHash = effectiveConfig.productHash;
+  if (!amountInCents || amountInCents <= 0) {
+    sendJson(res, 500, {
+      error:
+        'Configure PARADISE_PRICE_TABLE_JSON (recomendado) ou defina amountCents no PARADISE_PRODUCTS_JSON / PARADISE_AMOUNT_CENTS.'
+    });
+    return;
+  }
 
   if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
     sendJson(res, 400, { error: 'Valor inválido para criação do PIX.' });
@@ -268,7 +429,7 @@ module.exports = async function handler(req, res) {
       _provider: {
         name: 'paradisepags',
         redirectConfigured: Boolean(upsellUrl),
-        productKey: requestedKey
+        productKey: matchedProduct?.key || 'fallback'
       }
     });
   } catch (error) {
