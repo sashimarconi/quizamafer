@@ -73,13 +73,14 @@ git branch -M main
 git remote add origin https://github.com/SEU_USUARIO/SEU_REPO.git
 git push -u origin main
 ```
-
+Use as credenciais do GhostsPay no backend (não exponha no frontend).
+O token da UTMify também deve ficar apenas no backend.
 ## 3) Importar na Vercel
 - Acesse https://vercel.com/new
-- Importe o repositório
+### Exemplo `GHOSTS_PRODUCTS_JSON`
 - Deploy
 
-## 4) Teste do fluxo PIX
+### Exemplo `GHOSTS_PRICE_TABLE_JSON`
 - Abrir checkout e gerar PIX
 - Confirmar retorno de QR Code / copia e cola
 - Confirmar polling de status a cada 3s

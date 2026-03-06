@@ -1,4 +1,4 @@
-const PARADISE_CHECK_BASE_URL = 'https://multi.paradisepags.com/api/v1/check_status.php';
+const GHOSTS_BASE_URL = 'https://api.ghostspaysv2.com/functions/v1/transactions';
 const UTMIFY_ORDERS_URL = 'https://api.utmify.com.br/api-credentials/orders';
 
 function sendJson(res, statusCode, payload) {
@@ -262,12 +262,13 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.PARADISE_API_KEY;
-  const upsellUrl = process.env.PARADISE_UPSELL_URL;
+  const secretKey = String(process.env.GHOSTS_SECRET_KEY || '').trim();
+  const companyId = String(process.env.GHOSTS_COMPANY_ID || '').trim();
+  const upsellUrl = process.env.GHOSTS_UPSELL_URL || null;
 
-  if (!apiKey) {
+  if (!secretKey || !companyId) {
     sendJson(res, 500, {
-      error: 'PARADISE_API_KEY não configurada no ambiente.'
+      error: 'GHOSTS_SECRET_KEY e GHOSTS_COMPANY_ID não configurados no ambiente.'
     });
     return;
   }
@@ -281,25 +282,34 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const queryHash = encodeURIComponent(String(transactionId));
-    const response = await fetch(`${PARADISE_CHECK_BASE_URL}?hash=${queryHash}`, {
+    const credentials = Buffer.from(`${secretKey}:${companyId}`).toString('base64');
+    const idEncoded = encodeURIComponent(String(transactionId));
+    const url = `${GHOSTS_BASE_URL}/${idEncoded}`;
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'X-API-Key': apiKey
+        'Authorization': `Basic ${credentials}`
       }
     });
 
-    const result = await response.json().catch(() => ({}));
+    const text = await response.text().catch(() => '');
+    let result = {};
+    try {
+      result = text ? JSON.parse(text) : {};
+    } catch {
+      result = {};
+    }
 
     if (!response.ok) {
       sendJson(res, 502, {
-        status: 'error',
-        source: 'paradisepags',
-        checkerVersion: 'vercel-proxy-v1',
-        checkedIds: [transactionId],
-        error: result.message || result.error || 'Falha ao consultar status no Paradise.',
-        details: result
-      });
+          status: 'error',
+          source: 'ghostspays',
+          checkerVersion: 'vercel-proxy-v1',
+          checkedIds: [transactionId],
+          error: result.message || result.error || 'Falha ao consultar status no GhostsPay.',
+          details: result
+        });
       return;
     }
 
@@ -325,11 +335,10 @@ module.exports = async function handler(req, res) {
         status: null,
         body: error instanceof Error ? error.message : String(error)
       }));
-
       sendJson(res, 200, {
         status: 'paid',
         redirect_url: upsellUrl || null,
-        source: 'paradisepags',
+        source: 'ghostspays',
         checkerVersion: 'vercel-proxy-v1',
         checkedIds: [transactionId],
         rawStatus: rawStatus || 'paid',
@@ -340,7 +349,7 @@ module.exports = async function handler(req, res) {
 
     sendJson(res, 200, {
       status: 'pending',
-      source: 'paradisepags',
+      source: 'ghostspays',
       checkerVersion: 'vercel-proxy-v1',
       checkedIds: [transactionId],
       rawStatus: rawStatus || 'pending'
@@ -348,10 +357,10 @@ module.exports = async function handler(req, res) {
   } catch (error) {
     sendJson(res, 500, {
       status: 'error',
-      source: 'paradisepags',
+      source: 'ghostspays',
       checkerVersion: 'vercel-proxy-v1',
       checkedIds: [transactionId],
-      error: 'Erro interno ao consultar status no Paradise.',
+      error: 'Erro interno ao consultar status no GhostsPay.',
       details: error instanceof Error ? error.message : String(error)
     });
   }

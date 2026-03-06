@@ -1,8 +1,5 @@
-const PARADISE_CREATE_URLS = [
-  'https://multi.paradisepags.com/api/v1/transaction',
-  'https://multi.paradisepags.com/api/v1/transaction.php'
-];
-const DEFAULT_PARADISE_PRODUCT_HASH = 'prod_bc6860b7c055edfe';
+const GHOSTS_CREATE_URL = 'https://api.ghostspaysv2.com/functions/v1/transactions';
+const DEFAULT_PRODUCT_HASH = 'prod_bc6860b7c055edfe';
 const UTMIFY_ORDERS_URL = 'https://api.utmify.com.br/api-credentials/orders';
 
 function sendJson(res, statusCode, payload) {
@@ -435,21 +432,15 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.PARADISE_API_KEY;
-  const upsellUrl = process.env.PARADISE_UPSELL_URL;
-  const productsMap = parseProductsMap(process.env.PARADISE_PRODUCTS_JSON);
-  const priceTable = parsePriceTable(process.env.PARADISE_PRICE_TABLE_JSON);
+  const secretKey = String(process.env.GHOSTS_SECRET_KEY || '').trim();
+  const companyId = String(process.env.GHOSTS_COMPANY_ID || '').trim();
+  const upsellUrl = process.env.GHOSTS_UPSELL_URL || null;
+  const productsMap = parseProductsMap(process.env.GHOSTS_PRODUCTS_JSON);
+  const priceTable = parsePriceTable(process.env.GHOSTS_PRICE_TABLE_JSON);
 
-  if (!apiKey) {
+  if (!secretKey || !companyId) {
     sendJson(res, 500, {
-      error: 'PARADISE_API_KEY não configurada no ambiente.'
-    });
-    return;
-  }
-
-  if (!upsellUrl) {
-    sendJson(res, 500, {
-      error: 'PARADISE_UPSELL_URL não configurada no ambiente.'
+      error: 'GHOSTS_SECRET_KEY e GHOSTS_COMPANY_ID não configurados no ambiente.'
     });
     return;
   }
@@ -461,11 +452,11 @@ module.exports = async function handler(req, res) {
   const explicitProductHash = pickFirst(body.productHash, metadata.productHash);
 
   const envSingleProductHash = pickFirst(
-    process.env.PARADISE_PRODUCT_HASH,
-    process.env.PARADISE_DEFAULT_PRODUCT_HASH
+    process.env.GHOSTS_PRODUCT_HASH,
+    process.env.GHOSTS_DEFAULT_PRODUCT_HASH
   );
   const envSingleAmount = Number(
-    pickFirst(process.env.PARADISE_AMOUNT_CENTS, process.env.PARADISE_DEFAULT_AMOUNT_CENTS) || 0
+    pickFirst(process.env.GHOSTS_AMOUNT_CENTS, process.env.GHOSTS_DEFAULT_AMOUNT_CENTS) || 0
   );
 
   const fallbackSingleConfig =
@@ -495,12 +486,12 @@ module.exports = async function handler(req, res) {
     matchedProduct?.config.productHash ||
     (envSingleProductHash
       ? String(envSingleProductHash).trim()
-      : DEFAULT_PARADISE_PRODUCT_HASH);
+      : DEFAULT_PRODUCT_HASH);
 
   if (!amountInCents || amountInCents <= 0) {
     sendJson(res, 500, {
       error:
-        'Configure PARADISE_PRICE_TABLE_JSON (recomendado) ou defina amountCents no PARADISE_PRODUCTS_JSON / PARADISE_AMOUNT_CENTS.'
+        'Configure GHOSTS_PRICE_TABLE_JSON (recomendado) ou defina amountCents no GHOSTS_PRODUCTS_JSON / GHOSTS_AMOUNT_CENTS.'
     });
     return;
   }
@@ -528,43 +519,48 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    let response = null;
-    let rawText = '';
-    let result = {};
-    let usedUrl = PARADISE_CREATE_URLS[0];
+    const credentials = Buffer.from(`${secretKey}:${companyId}`).toString('base64');
+    const usedUrl = GHOSTS_CREATE_URL;
 
-    for (const candidateUrl of PARADISE_CREATE_URLS) {
-      usedUrl = candidateUrl;
-      response = await fetch(candidateUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey
+    const response = await fetch(usedUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${credentials}`
+      },
+      body: JSON.stringify({
+        amount: amountInCents,
+        items: [
+          {
+            title: String(pickFirst(body.kitName, body.productName, body.product_name, 'Kit AmazonBox')),
+            unitPrice: amountInCents,
+            quantity: 1,
+            externalRef: String(productHash || 'kit')
+          }
+        ],
+        paymentMethod: 'PIX',
+        customer: payload.customer,
+        metadata: {
+          ...(body.metadata || {}),
+          trackingParameters
         },
-        body: JSON.stringify(payload)
-      });
+        postbackUrl: body.postbackUrl || null,
+        description: body.description || null
+      })
+    });
 
-      rawText = await response.text();
-
-      try {
-        result = rawText ? JSON.parse(rawText) : {};
-      } catch {
-        result = {};
-      }
-
-      if (response.ok) {
-        break;
-      }
-
-      if (response.status !== 404) {
-        break;
-      }
+    let result = {};
+    const rawText = await response.text().catch(() => '');
+    try {
+      result = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      result = {};
     }
 
-    if (!response || !response.ok) {
+    if (!response.ok) {
       sendJson(res, 502, {
-        error: result.message || result.error || 'Falha ao criar transação no Paradise.',
-        providerStatus: response ? response.status : null,
+        error: result.message || result.error || 'Falha ao criar transação no GhostsPay.',
+        providerStatus: response.status,
         providerUrl: usedUrl,
         details: result,
         providerRaw: rawText ? String(rawText).slice(0, 800) : null
@@ -576,16 +572,18 @@ module.exports = async function handler(req, res) {
 
     const transactionId = String(
       pickFirst(
+        tx.id,
+        tx.uuid,
         tx.external_id,
         tx.externalId,
         tx.hash,
-        tx.id,
         tx.transaction_id,
         tx.transactionId
       ) || ''
     );
 
     const qrCodeText = pickFirst(
+      tx.pix && tx.pix.code,
       tx.pixCode,
       tx.pix_code,
       tx.qrCode,
@@ -596,6 +594,7 @@ module.exports = async function handler(req, res) {
     );
 
     const qrCodeImageRaw = pickFirst(
+      tx.pix && (tx.pix.qrImage || tx.pix.image || tx.pix.base64),
       tx.qrCodeBase64,
       tx.qr_code_base64,
       tx.qrImage,
@@ -615,7 +614,7 @@ module.exports = async function handler(req, res) {
 
     if (!transactionId || !qrCodeText) {
       sendJson(res, 502, {
-        error: 'Resposta da Paradise não trouxe dados mínimos do PIX.',
+        error: 'Resposta do GhostsPay não trouxe dados mínimos do PIX.',
         details: result
       });
       return;
@@ -649,16 +648,17 @@ module.exports = async function handler(req, res) {
         identifier: transactionId
       },
       _provider: {
-        name: 'paradisepags',
+        name: 'ghostspays',
         redirectConfigured: Boolean(upsellUrl),
         productKey: matchedProduct?.key || 'fallback',
-        hashMode: productHash ? 'provided' : 'not_provided'
+        hashMode: productHash ? 'provided' : 'not_provided',
+        providerUrl: usedUrl
       },
       utmify: utmifyResult
     });
   } catch (error) {
     sendJson(res, 500, {
-      error: 'Erro interno ao criar PIX no Paradise.',
+      error: 'Erro interno ao criar PIX no GhostsPay.',
       details: error instanceof Error ? error.message : String(error)
     });
   }
