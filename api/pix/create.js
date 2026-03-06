@@ -498,7 +498,7 @@ module.exports = async function handler(req, res) {
           ...(body.metadata || {}),
           trackingParameters
         },
-        postbackUrl: body.postbackUrl || null,
+        postbackUrl: body.postbackUrl || process.env.GHOSTS_POSTBACK_URL || null,
         description: body.description || null
       })
     });
