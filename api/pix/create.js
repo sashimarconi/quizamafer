@@ -578,8 +578,8 @@ module.exports = async function handler(req, res) {
     // Try a few quick polls to the transaction endpoint to see if QR becomes available.
     if (!qrCodeText) {
       try {
-        const maxAttempts = 6;
-        const intervalMs = 700;
+        const maxAttempts = 10;
+        const intervalMs = 1000;
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
           // small delay before polling

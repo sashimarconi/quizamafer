@@ -228,7 +228,17 @@ module.exports = async function handler(req, res) {
   }
 
   const body = normalizeBody(req);
-  const transactionId = body.transactionId || body.orderId || body.identifier;
+  let transactionId = body.transactionId || body.orderId || body.identifier;
+
+  // If GET, allow transactionId in query string: /api/pix/check?transactionId=...
+  if (req.method === 'GET' && !transactionId) {
+    try {
+      const parsed = new URL(req.url, 'http://localhost');
+      transactionId = parsed.searchParams.get('transactionId') || parsed.searchParams.get('orderId') || parsed.searchParams.get('identifier') || transactionId;
+    } catch (_) {
+      // ignore
+    }
+  }
 
   if (!transactionId) {
     sendJson(res, 400, { error: 'transactionId/orderId é obrigatório.' });
@@ -261,8 +271,10 @@ module.exports = async function handler(req, res) {
           source: 'ghostspays',
           checkerVersion: 'vercel-proxy-v1',
           checkedIds: [transactionId],
-          error: result.message || result.error || 'Falha ao consultar status no GhostsPay.',
-          details: result
+          providerStatus: response.status,
+          error: result && (result.message || result.error) ? (result.message || result.error) : 'Falha ao consultar status no GhostsPay.',
+          details: result,
+          providerRaw: typeof text === 'string' ? text.slice(0, 2000) : null
         });
       return;
     }
@@ -353,7 +365,7 @@ module.exports = async function handler(req, res) {
       checkerVersion: 'vercel-proxy-v1',
       checkedIds: [transactionId],
       error: 'Erro interno ao consultar status no GhostsPay.',
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? (error.message + " | " + (error.stack || '')) : String(error)
     });
   }
 };
