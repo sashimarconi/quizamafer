@@ -308,9 +308,9 @@ module.exports = async function handler(req, res) {
   );
 
   const fallbackSingleConfig =
-    envSingleProductHash && Number.isFinite(envSingleAmount) && envSingleAmount > 0
+    Number.isFinite(envSingleAmount) && envSingleAmount > 0
       ? {
-          productHash: String(envSingleProductHash).trim(),
+          productHash: envSingleProductHash ? String(envSingleProductHash).trim() : null,
           amountCents: Math.round(envSingleAmount)
         }
       : null;
@@ -332,7 +332,7 @@ module.exports = async function handler(req, res) {
   const productHash =
     explicitProductHash ||
     matchedProduct?.config.productHash ||
-    (fallbackSingleConfig ? fallbackSingleConfig.productHash : null);
+    (envSingleProductHash ? String(envSingleProductHash).trim() : null);
 
   if (!amountInCents || amountInCents <= 0) {
     sendJson(res, 500, {
