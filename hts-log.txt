@@ -1,0 +1,16 @@
+HTTrack3.49-2+htsswf+htsjava launched on Thu, 05 Mar 2026 21:34:08 at https://www.quizamazonopennow.com/ +*.png +*.gif +*.jpg +*.jpeg +*.css +*.js -ad.doubleclick.net/* -mime:application/foobar
+(winhttrack -qwC2%Ps2u1%s%uN0%I0p3DaK0H0%kf2A25000%f#f -F "Mozilla/4.5 (compatible; HTTrack 3.0x; Windows 98)" -%F "<!-- Mirrored from %s%s by HTTrack Website Copier/3.x [XR&CO'2014], %s -->" -%l "en, *" https://www.quizamazonopennow.com/ -O1 "C:\My Web Sites\quizamazon" +*.png +*.gif +*.jpg +*.jpeg +*.css +*.js -ad.doubleclick.net/* -mime:application/foobar )
+
+Information, Warnings and Errors reported for this mirror:
+note:	the hts-log.txt file, and hts-cache folder, may contain sensitive information,
+	such as username/password authentication for websites mirrored in this project
+	do not share these files/folders if you want these information to remain private
+
+21:34:17	Error: 	"Not Found" (404) at link https://www.quizamazonopennow.com/t.resolvedLink (from https://connect.facebook.net/en_US/fbevents.js)
+21:34:17	Error: 	"Not Found" (404) at link https://www.quizamazonopennow.com/signals/iwl.js (from https://connect.facebook.net/en_US/fbevents.js)
+21:34:17	Error: 	"Not Found" (404) at link https://www.quizamazonopennow.com/signals/iwl.js?pixel_id= (from https://connect.facebook.net/en_US/fbevents.js)
+21:34:17	Error: 	"Not Found" (404) at link https://www.quizamazonopennow.com/n.dl (from https://connect.facebook.net/en_US/fbevents.js)
+21:34:17	Error: 	"Not Found" (404) at link https://www.quizamazonopennow.com/n.rl (from https://connect.facebook.net/en_US/fbevents.js)
+
+HTTrack Website Copier/3.49-2 mirror complete in 9 seconds : 19 links scanned, 13 files written (1277726 bytes overall) [381239 bytes received at 42359 bytes/sec], 1277817 bytes transferred using HTTP compression in 14 files, ratio 28%, 2.3 requests per connection
+(5 errors, 0 warnings, 0 messages)
