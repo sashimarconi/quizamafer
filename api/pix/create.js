@@ -273,6 +273,7 @@ module.exports = async function handler(req, res) {
   const metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
   const productKeyCandidates = buildProductKeys(metadata, body);
   const matchedProduct = resolveProductConfig(productsMap, productKeyCandidates);
+  const explicitProductHash = pickFirst(body.productHash, metadata.productHash);
 
   const envSingleProductHash = pickFirst(
     process.env.PARADISE_PRODUCT_HASH,
@@ -305,16 +306,9 @@ module.exports = async function handler(req, res) {
             : 0;
 
   const productHash =
+    explicitProductHash ||
     matchedProduct?.config.productHash ||
     (fallbackSingleConfig ? fallbackSingleConfig.productHash : null);
-
-  if (!productHash) {
-    sendJson(res, 500, {
-      error:
-        'Configure PARADISE_PRODUCTS_JSON (hash por chave) ou PARADISE_PRODUCT_HASH para fallback.'
-    });
-    return;
-  }
 
   if (!amountInCents || amountInCents <= 0) {
     sendJson(res, 500, {
@@ -333,7 +327,6 @@ module.exports = async function handler(req, res) {
 
   const payload = {
     amount: amountInCents,
-    productHash,
     customer: {
       name: randomCustomer.name,
       email: randomCustomer.email,
@@ -341,6 +334,10 @@ module.exports = async function handler(req, res) {
       phone: randomCustomer.phone
     }
   };
+
+  if (productHash) {
+    payload.productHash = String(productHash).trim();
+  }
 
   try {
     const response = await fetch(PARADISE_CREATE_URL, {
@@ -429,7 +426,8 @@ module.exports = async function handler(req, res) {
       _provider: {
         name: 'paradisepags',
         redirectConfigured: Boolean(upsellUrl),
-        productKey: matchedProduct?.key || 'fallback'
+        productKey: matchedProduct?.key || 'fallback',
+        hashMode: productHash ? 'provided' : 'not_provided'
       }
     });
   } catch (error) {

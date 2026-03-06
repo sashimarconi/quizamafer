@@ -5,6 +5,10 @@ No projeto da Vercel, adicione em **Settings > Environment Variables**:
 
 - `PARADISE_API_KEY`
 - `PARADISE_UPSELL_URL`
+
+Com isso o backend já funciona no modo simplificado.
+
+Variáveis avançadas (opcionais):
 - `PARADISE_PRODUCTS_JSON` (recomendado para múltiplos produtos)
 - `PARADISE_PRICE_TABLE_JSON` (recomendado para preço dinâmico: kit + bumps + frete)
 
