@@ -566,10 +566,28 @@ module.exports = async function handler(req, res) {
 
     const rawStatus = String(pickFirst(tx.status, tx.payment_status, tx.paymentStatus) || 'pending').toLowerCase();
 
-    if (!transactionId || !qrCodeText) {
+    if (!transactionId) {
       sendJson(res, 502, {
-        error: 'Resposta do GhostsPay não trouxe dados mínimos do PIX.',
+        error: 'Resposta do GhostsPay não trouxe transactionId.',
         details: result
+      });
+      return;
+    }
+
+    // GhostsPay may create the transaction first and generate PIX/QR later.
+    // If no QR/code is present, return the minimal info so frontend can poll `/api/pix/check`.
+    if (!qrCodeText) {
+      sendJson(res, 200, {
+        transactionId,
+        status: rawStatus,
+        order: { id: transactionId },
+        pix: null,
+        _provider: {
+          name: 'ghostspays',
+          providerUrl: usedUrl,
+          productKey: matchedProduct?.key || 'fallback'
+        },
+        _rawProviderResponse: result
       });
       return;
     }
